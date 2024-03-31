@@ -4,9 +4,6 @@ const cors = require("cors");
 const fetch = require("node-fetch");
 const { MongoClient } = require("mongodb");
 
-
-const { MongoClient } = require("mongodb");
-
 // Initialize MongoDB client
 const uri =
   "mongodb+srv://dbadmin:WacHHglu8zL3IufY@onlinestatusdata.rpn2mho.mongodb.net/?retryWrites=true&w=majority&appName=onlineStatusData";
