@@ -1,15 +1,15 @@
 
 {
-  "name": "express-hello-world",
+  "name": "server",
   "version": "1.0.0",
-  "description": "Express Hello World on Render",
+  "description": "server",
   "main": "app.js",
-  "repository": "https://github.com/render-examples/express-hello-world",
   "author": "Render Developers",
   "license": "MIT",
   "private": false,
   "scripts": {
-    "start": "node app.js"
+    "start": "node app.js",
+    "dev": "nodemon server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -19,6 +19,6 @@
     
   },
   "engines": {
-    "node": ">=14"
+    "node": ">=18.18.0 <19.0.0"
   }
 }
