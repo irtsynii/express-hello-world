@@ -4,7 +4,7 @@ const cors = require("cors");
 const fetch = require("node-fetch");
 const { MongoClient } = require("mongodb");
 
-const fetch = require("node-fetch");
+
 const { MongoClient } = require("mongodb");
 
 // Initialize MongoDB client
