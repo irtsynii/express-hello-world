@@ -1,7 +1,9 @@
 // Import necessary modules
 const express = require("express");
-    const app = express();
- app.use(cors({ origin: '*' }))
+const cors = require("cors");
+const fetch = require("node-fetch");
+const { MongoClient } = require("mongodb");
+
 const fetch = require("node-fetch");
 const { MongoClient } = require("mongodb");
 
