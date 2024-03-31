@@ -1,61 +1,134 @@
+// Import necessary modules
 const express = require("express");
-const app = express();
-const port = process.env.PORT || 3001;
+const cors = require("cors");
+const fetch = require("node-fetch");
+const { MongoClient } = require("mongodb");
 
-app.get("/", (req, res) => res.type('html').send(html));
+// Initialize MongoDB client
+const uri =
+  "mongodb+srv://dbadmin:WacHHglu8zL3IufY@onlinestatusdata.rpn2mho.mongodb.net/?retryWrites=true&w=majority&appName=onlineStatusData";
+const client = new MongoClient(uri);
 
-const server = app.listen(port, () => console.log(`Example app listening on port ${port}!`));
+// Store player login times in memory
+const playerLoginTimes = {};
 
-server.keepAliveTimeout = 120 * 1000;
-server.headersTimeout = 120 * 1000;
+// Function to calculate online time in minutes and log to MongoDB
+async function logOnlineTime(name, startTime, endTime) {
+  const onlineTime = Math.round((endTime - startTime) / (1000 * 60)); // Convert milliseconds to minutes
+  const collection = client.db("onlineStatusData").collection("characters");
 
-const html = `
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Hello from Render!</title>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
-    <script>
-      setTimeout(() => {
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 },
-          disableForReducedMotion: true
-        });
-      }, 500);
-    </script>
-    <style>
-      @import url("https://p.typekit.net/p.css?s=1&k=vnd5zic&ht=tk&f=39475.39476.39477.39478.39479.39480.39481.39482&a=18673890&app=typekit&e=css");
-      @font-face {
-        font-family: "neo-sans";
-        src: url("https://use.typekit.net/af/00ac0a/00000000000000003b9b2033/27/l?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n7&v=3") format("woff2"), url("https://use.typekit.net/af/00ac0a/00000000000000003b9b2033/27/d?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n7&v=3") format("woff"), url("https://use.typekit.net/af/00ac0a/00000000000000003b9b2033/27/a?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n7&v=3") format("opentype");
-        font-style: normal;
-        font-weight: 700;
+  // Update the specific document for the character with their logs
+  await collection.updateOne(
+    { name },
+    {
+      $push: {
+        logs: {
+          onlineTimeInMinutes: onlineTime,
+          startTime: new Date(startTime).toISOString(),
+          endTime: new Date(endTime).toISOString(),
+        },
+      },
+    },
+    { upsert: true }
+  );
+
+  console.log(
+    `${name} was online for ${onlineTime} minutes. Logged to MongoDB.`
+  );
+}
+
+// Function to fetch player data from the Armory API
+async function fetchPlayerData(name) {
+  const response = await fetch(
+    `https://armory.warmane.com/api/character/${name}/Icecrown/profile`
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to fetch data for ${name}`);
+  }
+  return await response.json();
+}
+
+// Function to update online status and player data
+async function updateOnlineStatus(names) {
+  const onlineStatus = {};
+
+  for (const name of names) {
+    try {
+      const data = await fetchPlayerData(name);
+      console.log(`Name: ${name}, Online: ${data.online}`);
+
+      // Check if player status has changed from offline to online
+      if (data.online && !playerLoginTimes[name]) {
+        playerLoginTimes[name] = Date.now(); // Record login time
+      } else if (!data.online && playerLoginTimes[name]) {
+        calculateOnlineTime(name); // Calculate online time if player goes offline
       }
-      html {
-        font-family: neo-sans;
-        font-weight: 700;
-        font-size: calc(62rem / 16);
+
+      // Store online status in memory
+      onlineStatus[name] = {
+        online: data.online,
+        lastChecked: new Date().toISOString(),
+      };
+
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  return onlineStatus;
+}
+
+// Function to calculate online time when player goes offline
+function calculateOnlineTime(name) {
+  const loginTime = playerLoginTimes[name];
+  if (loginTime) {
+    const endTime = Date.now(); // Current time
+    const startTime = loginTime;
+    logOnlineTime(name, startTime, endTime); // Log online time to MongoDB
+    delete playerLoginTimes[name]; // Remove the player's login time from memory
+  }
+}
+
+// Run the server
+async function run() {
+  try {
+    await client.connect();
+    console.log("Connected to MongoDB");
+
+    // Start Express server
+    const app = express();
+    app.use(cors());
+    app.use(express.json());
+
+    // Define route for updating online status
+    app.get("/update-online-status", async (req, res) => {
+      try {
+        const names = ["elegant", "elegantz"];
+        const onlineStatus = await updateOnlineStatus(names);
+        res.json(onlineStatus);
+      } catch (error) {
+        console.error("Failed to update online status:", error);
+        res.status(500).json({ error: "Internal Server Error" });
       }
-      body {
-        background: white;
-      }
-      section {
-        border-radius: 1em;
-        padding: 1em;
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        margin-right: -50%;
-        transform: translate(-50%, -50%);
-      }
-    </style>
-  </head>
-  <body>
-    <section>
-      Hello from Render!
-    </section>
-  </body>
-</html>
-`
+    });
+
+    // Start the server
+    const PORT = 8000;
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+
+    // Set up periodic update using setInterval
+    setInterval(async () => {
+      const names = ["elegant", "elegantz"];
+      await updateOnlineStatus(names);
+    }, 60 * 1000); // Update every 20 seconds
+  } finally {
+    // Close the MongoDB connection when finished
+    // await client.close();
+  }
+}
+
+// Run the server
+run().catch(console.dir);
